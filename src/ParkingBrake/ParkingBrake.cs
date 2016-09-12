@@ -44,10 +44,8 @@ namespace ParkingBrake
 			switch (state) {
 			case StartState.Editor:
 				isAvailable = this.part.isMirrored;
-				if (isInstalled == State.Unknown && isAvailable) {
-					Events ["InstallParkingBrake"].active = true;
-					Events ["UninstallParkingBrake"].active = false;
-				}
+				Events ["InstallParkingBrake"].active = (isAvailable && isInstalled != State.True);
+				Events ["UninstallParkingBrake"].active = (isAvailable && isInstalled != State.False);
 				break;
 
 			default:
@@ -82,14 +80,22 @@ namespace ParkingBrake
 			isInstalled = State.True;
 			Events ["InstallParkingBrake"].active = false;
 			Events ["UninstallParkingBrake"].active = true;
+			foreach (ParkingBrake p in this.part.getSymmetryCounterPart(0).Modules.OfType<ParkingBrake>()) {
+				p.Events ["InstallParkingBrake"].active = false;
+				p.Events ["UninstallParkingBrake"].active = true;
+			}
 		}
 
 		[KSPEvent(guiActive = false, guiActiveEditor = true, name = "UninstallParkingBrake", guiName = "Uninstall Parking Brake")]
-		public void UninstalParkingBrake() {
+		public void UninstallParkingBrake() {
 
 			isInstalled = State.False;
 			Events ["InstallParkingBrake"].active = true;
 			Events ["UninstallParkingBrake"].active = false;
+			foreach (ParkingBrake p in this.part.getSymmetryCounterPart(0).Modules.OfType<ParkingBrake>()) {
+				p.Events ["InstallParkingBrake"].active = true;
+				p.Events ["UninstallParkingBrake"].active = false;
+			}
 		}
 
 		[KSPEvent(guiActive = true, guiActiveEditor = false, name = "EngageParkingBrake", guiName = "Engage Parking Brake")]
@@ -184,8 +190,10 @@ namespace ParkingBrake
 
 		public void FixedUpdate()
 		{
+			if (vessel == null)
+				return;
+			
 			String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-
 
 			if (shouldStabilize())
 			{
