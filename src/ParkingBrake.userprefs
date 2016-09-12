@@ -1,0 +1,13 @@
+﻿<Properties StartupItem="ParkingBrake/ParkingBrake.csproj">
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />
+  <MonoDevelop.Ide.Workbench>
+    <Files>
+      <File FileName="ParkingBrake/ParkingBrake.cs" Line="118" Column="5" />
+      <File FileName="ParkingBrake/ParkedVessel.cs" Line="25" Column="22" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>
