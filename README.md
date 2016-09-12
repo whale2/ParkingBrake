@@ -13,13 +13,13 @@ The mod itself is not the perfect and really is a kind of duct-tape solution - i
 tries to slow down every part of the vehicle and reset their original position.
 However, parked vehicle is not permanently fixed by divine power - if you bump your
 heavy airport truck into parked plane, it will move under the impulse from the truck,
-so only small phantom speed usually under 0.1 m/s is eliminated.
+so only small phantom speed, usually under 0.1 m/s, is eliminated.
 
 Parking brake can be engaged on any wheel that has brakes and attached in mirror setup 
 and when engaged, it also activates standard wheel brake, however, whole brake action 
-group is not toggles (so, for instance, airbrakes are not activated)
-Parking brake should be enabled in editor to be available in flight mode.
+group is not toggled (so, for instance, airbrakes are not activated)
+Parking brake should be 'installed' (enabled) in editor to be available in flight mode.
 Activating parking brake on any wheel in turn activates all other brakes where parking 
-brake is enabled.
+brake is installed.
 
 (This is development version, expect tons of bugs)
