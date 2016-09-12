@@ -45,7 +45,7 @@ namespace ParkingBrake
 			case StartState.Editor:
 				isAvailable = this.part.isMirrored;
 				Events ["InstallParkingBrake"].active = (isAvailable && isInstalled != State.True);
-				Events ["UninstallParkingBrake"].active = (isAvailable && isInstalled != State.False);
+				Events ["UninstallParkingBrake"].active = (isAvailable && isInstalled == State.True);
 				break;
 
 			default:
