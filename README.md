@@ -11,8 +11,12 @@ can park their vehicles using Parking Brake.
 
 The mod itself is not the perfect and really is a kind of duct-tape solution - it 
 tries to slow down every part of the vehicle and reset their original position.
+Sadly, I could not find what makes vehicles move nor could I apply appropriate 
+counterforce to make them stop so sliding vehicle does periodical micro-jumps back to
+original position. This paramater is tweakable in config file as well as some others.
+(See comments in Brake.cfg file)
 However, parked vehicle is not permanently fixed by divine power - if you bump your
-heavy airport truck into parked plane, it will move under the impulse from the truck,
+heavy airport truck into parked plane, it will move due to the impulse from the truck,
 so only small phantom speed, usually under 0.1 m/s, is eliminated.
 
 Parking brake can be engaged on any wheel that has brakes and attached in mirror setup 
@@ -23,3 +27,4 @@ Activating parking brake on any wheel in turn activates all other brakes where p
 brake is installed.
 
 (This is development version, expect tons of bugs)
+
