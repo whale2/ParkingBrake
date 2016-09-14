@@ -11,32 +11,27 @@ namespace ParkingBrake
 	public class ParkingBrake : PartModule
 	{
 		[KSPField]
-		public int resetRate = 60;
-		[KSPField]
-		public float velocityThreshold = 0.1f;
+		public float bumpVelocityThreshold = 0.1f;
 		[KSPField]
 		public float partVelocityThreshold = 0.1f;
 		[KSPField]
-		public float saveVelocityThreshold = 0.05f;
+		public float restVelocityThreshold = 0.05f;
 		[KSPField]
 		public int debugLevel = 0;
 
 		public bool isAvailable = false;
 
 		[KSPField(isPersistant = true)]
-		public State isInstalled;
+		public State isInstalled = State.False;
 
 		[KSPField(isPersistant = true)]
-		public State isEngaged;
+		public State isEngaged = State.Unknown;
 
 		[KSPField(isPersistant = true)]
-		private State isMaster;
+		private State isMaster = State.Unknown;
 
 		private Part mirrorBrake = null;
-		private bool needsSave = false;
-		private int frameCount;
-
-		private Dictionary<Part, Vector3> partsPosition;
+		private bool inRest = false;
 
 		public ParkingBrake ()
 		{
@@ -91,6 +86,7 @@ namespace ParkingBrake
 			Events ["UninstallParkingBrake"].active = true;
 			foreach (Part p in this.part.symmetryCounterparts)
 				foreach (ParkingBrake b in p.Modules.OfType<ParkingBrake>()) {
+					b.isInstalled = State.True;
 					b.Events ["InstallParkingBrake"].active = false;
 					b.Events ["UninstallParkingBrake"].active = true;
 				}
@@ -104,6 +100,7 @@ namespace ParkingBrake
 			Events ["UninstallParkingBrake"].active = false;
 			foreach (Part p in this.part.symmetryCounterparts)
 				foreach (ParkingBrake b in p.Modules.OfType<ParkingBrake>()) {
+					b.isInstalled = State.False;
 					b.Events ["InstallParkingBrake"].active = true;
 					b.Events ["UninstallParkingBrake"].active = false;
 				}
@@ -126,9 +123,8 @@ namespace ParkingBrake
 			dbg ("Engaged", 2);
 
 			// saving part positions
-			// TODO: Only save after we're settled
-			needsSave  = true;
-			partsPosition = new Dictionary<Part, Vector3> ();
+			// TODO: Only stabilize after we're settled
+			inRest  = false;
 
 			// engage real brakes
 			foreach (ModuleWheelBrakes m in this.part.Modules.OfType<ModuleWheelBrakes>()) {
@@ -188,41 +184,47 @@ namespace ParkingBrake
 			dbg ("Disengaged mirrored parking brake", 2);
 		}
 
-		public override void OnLoad(ConfigNode node)
-		{
+		public override void OnLoad(ConfigNode node) {
+			
 			this.isInstalled = resolveState (node.GetValue ("isInstalled"));
 			this.isEngaged = resolveState (node.GetValue ("isEngaged"));
 			this.isMaster = resolveState (node.GetValue ("isMaster"));
 
+			dbg ("OnLoad: part name: " + this.part.name + "; installed: " + isInstalled + "; engaged: " + isEngaged + "; master: " + isMaster, 2);
 			if (this.isInstalled != State.True) {
 				Events ["EngageParkingBrake"].active = false;
 				Events ["DisengageParkingBrake"].active = false;
 			} else if (this.isEngaged == State.True) {
 				EngageParkingBrake ();
+			} else if (this.isEngaged == State.False) {
+				DisengageParkingBrake ();
 			}
 		}
+
+		/*public override void OnSave(ConfigNode node) {
+
+			node.AddValue("isInstalled", this.isInstalled);
+			node.AddValue("isEngaged", this.isEngaged);
+			node.AddValue("isMaster", this.isMaster);
+		}*/
 
 		public void FixedUpdate()
 		{
 			if (vessel == null)
 				return;
+
+			float srfSpeed = this.vessel.GetSrfVelocity ().magnitude;
+			if (srfSpeed > bumpVelocityThreshold)
+				inRest = false;
 			
-			if (shouldStabilize())
+			else if (srfSpeed < restVelocityThreshold)
+				inRest = true;
+
+			if (inRest && shouldStabilize())
 			{
-				if (needsSave && this.vessel.GetSrfVelocity ().magnitude < saveVelocityThreshold) {
-					foreach (Part p in this.vessel.parts)
-						partsPosition [p] = p.Rigidbody.position;
+				dbg ("Stabilizing", 3);
 
-					dbg ("Saved parts : " + partsPosition.Count (), 3);
-					frameCount = 0;
-					needsSave = false;
-				}
-
-				frameCount++;
-				dbg ("Stabilizing (frameCount=" + frameCount + ")", 3);
-
-				// Ok, let's try to cancel velocity of every part
-				int i = 0;
+				// Ok, let's cast some sleep magic
 				int j = 0;
 				int k = 0;
 				foreach (Part p in this.vessel.parts) {
@@ -230,39 +232,30 @@ namespace ParkingBrake
 					if (p.Rigidbody == null)
 						continue;
 					j++;
-					// Eliminating small phantom velocity change
+
 					//print (nm + "Veocity magnitude: " + p.Rigidbody.velocity.magnitude);
 					if (p.Rigidbody.velocity.magnitude < partVelocityThreshold) {
-						p.Rigidbody.velocity = Vector3.zero;
+						//p.Rigidbody.velocity = Vector3.zero;
+						p.Rigidbody.Sleep ();
 						k++;
-						if (frameCount >= resetRate) {
-							try {
-								p.Rigidbody.position = partsPosition [p];
-								i++;
-							} catch (KeyNotFoundException e) {
-								dbg ("Part " + p.name + " not found (" + e.ToString () + ")", 2);
-								dbg ("Parts Dict=" + partsPosition.ToString (), 2);
-								dbg ("First part: " + partsPosition.First ().Key.ToString ()
-									+ "; name=" + partsPosition.First ().Key.name, 2);
-							}
-						}
 					}
 				}
-				if (i > 0)
-					frameCount = 0;
-				dbg ("Reset velocity for " + k + " parts out of " + j + " with Rigidbody; reset position for " + i + " parts", 3);
-				Vector3d sp = vessel.GetSrfVelocity ();
-				dbg ("Vessel speed: x=" + sp.x + "; y=" + sp.y + "; z=" + sp.z, 3);
+
+				dbg ("Put to sleep " + k + " parts out of " + j + " with Rigidbody", 3);
 			}
 			else dbg ("Not stabilizing", 3);
+
+			Vector3 sp = this.vessel.GetSrfVelocity ();
+			dbg ("Vessel speed: x=" + sp.x + "; y=" + sp.y + "; z=" + sp.z, 3);
+			dbg ("In rest = " + inRest, 3);
 		}
 
 		private bool shouldStabilize() {
 
 			dbg ("eng=" + isEngaged + "; master=" + isMaster + 
 				"; mirror=" + (mirrorBrake == null ? "null" : "not null") + "; landed=" + this.vessel.checkLanded() + 
-				"; splashed=" + this.vessel.checkSplashed() + "; partspos=" + (partsPosition == null ? "null" : "not null") + 
-				"; srf=" + this.vessel.GetSrfVelocity ().magnitude + "; thr=" + velocityThreshold + "; save thr=" + saveVelocityThreshold, 3);
+				"; splashed=" + this.vessel.checkSplashed() + "; srf=" + this.vessel.GetSrfVelocity ().magnitude + 
+				"; thr=" + bumpVelocityThreshold + "; save thr=" + restVelocityThreshold, 3);
 			if (this.isEngaged != State.True)
 				return false;
 			if (this.isMaster != State.True)
@@ -273,13 +266,6 @@ namespace ParkingBrake
 				return false;
 			if (this.vessel.checkSplashed ())
 				return false;
-			if (this.partsPosition == null)
-				return false;
-			if (this.vessel.GetSrfVelocity ().magnitude > velocityThreshold) {
-				// trigger saving new vehicle position
-				needsSave = true;
-				return false;
-			}
 			
 			return true;
 		}
