@@ -16,15 +16,17 @@ namespace ParkingBrake
 
 			parkedVessels[vessel] = engagingPart;
 
-			Debug.Log ("Engaging by part:" + engagingPart.GetInstanceID());
+			//Debug.Log ("Engaging by part:" + engagingPart.GetInstanceID());
 			// Find all wheels with parking brake installed
 			List<Part> mirrorPart = new List<Part>();
 			foreach (Part p in engagingPart.vessel.parts) {
+				if (p == engagingPart)
+					continue;
 				foreach (ParkingBrake m in p.Modules.OfType<ParkingBrake>()) {
 					if (m.isInstalled == State.True) {
 						
 						// There should be only one...
-						Debug.Log ("Sending mirrored enagage command to: " + m.part.GetInstanceID () + " from " + engagingPart.GetInstanceID ());
+						//Debug.Log ("Sending mirrored enagage command to: " + m.part.GetInstanceID () + " from " + engagingPart.GetInstanceID ());
 						m.EngageMirroredParkingBrake (engagingPart);
 						mirrorPart.Add (p);
 					}

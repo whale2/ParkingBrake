@@ -16,14 +16,22 @@ namespace ParkingBrake
 		public float velocityThreshold = 0.1f;
 		[KSPField]
 		public float partVelocityThreshold = 0.1f;
+		[KSPField]
+		public float saveVelocityThreshold = 0.05f;
+		[KSPField]
+		public int debugLevel = 0;
 
 		public bool isAvailable = false;
+
 		[KSPField(isPersistant = true)]
 		public State isInstalled;
+
 		[KSPField(isPersistant = true)]
-		public State engaged;
+		public State isEngaged;
+
 		[KSPField(isPersistant = true)]
 		private State isMaster;
+
 		private Part mirrorBrake = null;
 		private bool needsSave = false;
 		private int frameCount;
@@ -43,9 +51,10 @@ namespace ParkingBrake
 		{
 			switch (state) {
 			case StartState.Editor:
-				isAvailable = this.part.isMirrored;
+				isAvailable = this.part.symmetryCounterparts.Count() > 0;
 				Events ["InstallParkingBrake"].active = (isAvailable && isInstalled != State.True);
 				Events ["UninstallParkingBrake"].active = (isAvailable && isInstalled == State.True);
+				dbg ("Editor mode; available: " + isAvailable + "; installed: " + isInstalled, 1);
 				break;
 
 			default:
@@ -53,7 +62,7 @@ namespace ParkingBrake
 				Events ["InstallParkingBrake"].active = false;
 				Events ["UninstallParkingBrake"].active = false;
 
-				if (engaged == State.Unknown) {
+				if (isEngaged == State.Unknown) {
 					if (isInstalled == State.True)
 						Events ["EngageParkingBrake"].active = true;
 
@@ -62,9 +71,9 @@ namespace ParkingBrake
 					//Events ["EngageParkingBrake"].active = engaged == State.True;
 					//Events ["DisengageParkingBrake"].active = engaged == State.False;
 
-					if (isMaster == State.Unknown || isMaster == State.False)
+					if (isMaster != State.True)
 						return;
-					if (engaged == State.True)
+					if (isEngaged == State.True)
 						EngageParkingBrake ();
 					else
 						DisengageParkingBrake ();
@@ -80,10 +89,11 @@ namespace ParkingBrake
 			isInstalled = State.True;
 			Events ["InstallParkingBrake"].active = false;
 			Events ["UninstallParkingBrake"].active = true;
-			foreach (ParkingBrake p in this.part.getSymmetryCounterPart(0).Modules.OfType<ParkingBrake>()) {
-				p.Events ["InstallParkingBrake"].active = false;
-				p.Events ["UninstallParkingBrake"].active = true;
-			}
+			foreach (Part p in this.part.symmetryCounterparts)
+				foreach (ParkingBrake b in p.Modules.OfType<ParkingBrake>()) {
+					b.Events ["InstallParkingBrake"].active = false;
+					b.Events ["UninstallParkingBrake"].active = true;
+				}
 		}
 
 		[KSPEvent(guiActive = false, guiActiveEditor = true, name = "UninstallParkingBrake", guiName = "Uninstall Parking Brake")]
@@ -92,28 +102,28 @@ namespace ParkingBrake
 			isInstalled = State.False;
 			Events ["InstallParkingBrake"].active = true;
 			Events ["UninstallParkingBrake"].active = false;
-			foreach (ParkingBrake p in this.part.getSymmetryCounterPart(0).Modules.OfType<ParkingBrake>()) {
-				p.Events ["InstallParkingBrake"].active = true;
-				p.Events ["UninstallParkingBrake"].active = false;
-			}
+			foreach (Part p in this.part.symmetryCounterparts)
+				foreach (ParkingBrake b in p.Modules.OfType<ParkingBrake>()) {
+					b.Events ["InstallParkingBrake"].active = true;
+					b.Events ["UninstallParkingBrake"].active = false;
+				}
 		}
 
 		[KSPEvent(guiActive = true, guiActiveEditor = false, name = "EngageParkingBrake", guiName = "Engage Parking Brake")]
 		public void EngageParkingBrake()
 		{
-			if (isInstalled == State.False || isMaster == State.False)
+			if (isInstalled == State.False) // || isMaster == State.False)
 				return;
 
-			// TODO: Check if we are standing still enough
-			engaged = State.True;
+			isEngaged = State.True;
 			isMaster = State.True;
+			mirrorBrake = null;
 
 			// Register this parking brake
 			ParkedVessel.parkVessel(this.vessel.id, this.part);
 			Events ["EngageParkingBrake"].active = false;
 			Events ["DisengageParkingBrake"].active = true;
-			String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-			print (nm + "Engaged parking brake");
+			dbg ("Engaged", 2);
 
 			// saving part positions
 			// TODO: Only save after we're settled
@@ -130,13 +140,12 @@ namespace ParkingBrake
 		public void DisengageParkingBrake()
 		{
 			if (mirrorBrake == null) {
-				engaged = State.False;
+				isEngaged = State.False;
 				Events ["EngageParkingBrake"].active = true;
 				Events ["DisengageParkingBrake"].active = false;
 
 				ParkedVessel.releaseVessel (this.vessel.id, this.part);
-				String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-				print (nm + "Parking brake disengaged");
+				dbg ("Disengaged", 2);
 			} else {
 				ParkedVessel.releaseVessel (this.vessel.id, this.part);
 			}
@@ -149,12 +158,11 @@ namespace ParkingBrake
 
 		public void EngageMirroredParkingBrake(Part mirror)
 		{
-			String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-			print (nm + "Engaging by mirrored part; my id=" + this.part.GetInstanceID () + "; other id=" + mirror.GetInstanceID());
+			dbg ("Engaging by mirrored part; my id=" + this.part.GetInstanceID () + "; other id=" + mirror.GetInstanceID(), 2);
 
 			isMaster = State.False;
 			mirrorBrake = mirror;
-			engaged = State.True;
+			isEngaged = State.True;
 			Events ["EngageParkingBrake"].active = false;
 			Events ["DisengageParkingBrake"].active = true;
 
@@ -168,7 +176,7 @@ namespace ParkingBrake
 		{
 			isMaster = State.Unknown;
 			mirrorBrake = null;
-			engaged = State.False;
+			isEngaged = State.False;
 			Events ["EngageParkingBrake"].active = true;
 			Events ["DisengageParkingBrake"].active = false;
 
@@ -177,15 +185,21 @@ namespace ParkingBrake
 				m.brakeInput = 0;
 			}
 
-			String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-			print (nm + "Disengaged mirrored parking brake");
+			dbg ("Disengaged mirrored parking brake", 2);
 		}
 
-		// TODO: This!
 		public override void OnLoad(ConfigNode node)
 		{
+			this.isInstalled = resolveState (node.GetValue ("isInstalled"));
+			this.isEngaged = resolveState (node.GetValue ("isEngaged"));
+			this.isMaster = resolveState (node.GetValue ("isMaster"));
 
-			isAvailable = this.part.isMirrored;
+			if (this.isInstalled != State.True) {
+				Events ["EngageParkingBrake"].active = false;
+				Events ["DisengageParkingBrake"].active = false;
+			} else if (this.isEngaged == State.True) {
+				EngageParkingBrake ();
+			}
 		}
 
 		public void FixedUpdate()
@@ -193,21 +207,19 @@ namespace ParkingBrake
 			if (vessel == null)
 				return;
 			
-			String nm = vessel.GetName () + "(" + this.GetInstanceID() + "): ";
-
 			if (shouldStabilize())
 			{
-				if (needsSave) {
+				if (needsSave && this.vessel.GetSrfVelocity ().magnitude < saveVelocityThreshold) {
 					foreach (Part p in this.vessel.parts)
 						partsPosition [p] = p.Rigidbody.position;
 
-					print (nm + "Saved parts : " + partsPosition.Count ());
+					dbg ("Saved parts : " + partsPosition.Count (), 3);
 					frameCount = 0;
 					needsSave = false;
 				}
 
 				frameCount++;
-				print (nm + "Stabilizing (frameCount=" + frameCount + ")");
+				dbg ("Stabilizing (frameCount=" + frameCount + ")", 3);
 
 				// Ok, let's try to cancel velocity of every part
 				int i = 0;
@@ -228,28 +240,32 @@ namespace ParkingBrake
 								p.Rigidbody.position = partsPosition [p];
 								i++;
 							} catch (KeyNotFoundException e) {
-								print ("Part " + p.name + " not found (" + e.ToString () + ")");
-								print ("Parts Dict=" + partsPosition.ToString ());
-								print ("First part: " + partsPosition.First ().Key.ToString ()
-								+ "; name=" + partsPosition.First ().Key.name);
+								dbg ("Part " + p.name + " not found (" + e.ToString () + ")", 2);
+								dbg ("Parts Dict=" + partsPosition.ToString (), 2);
+								dbg ("First part: " + partsPosition.First ().Key.ToString ()
+									+ "; name=" + partsPosition.First ().Key.name, 2);
 							}
 						}
 					}
 				}
 				if (i > 0)
 					frameCount = 0;
-				print (nm+"Reset velocity for " + k + " parts out of " + j + " with Rigidbody; reset position for " + i + " parts");
+				dbg ("Reset velocity for " + k + " parts out of " + j + " with Rigidbody; reset position for " + i + " parts", 3);
 				Vector3d sp = vessel.GetSrfVelocity ();
-				print (nm+"Vessel speed: x=" + sp.x + "; y=" + sp.y + "; z=" + sp.z);
+				dbg ("Vessel speed: x=" + sp.x + "; y=" + sp.y + "; z=" + sp.z, 3);
 			}
-			else print (nm+"Not stabilizing");
+			else dbg ("Not stabilizing", 3);
 		}
 
 		private bool shouldStabilize() {
 
-			if (this.engaged != State.True)
+			dbg ("eng=" + isEngaged + "; master=" + isMaster + 
+				"; mirror=" + (mirrorBrake == null ? "null" : "not null") + "; landed=" + this.vessel.checkLanded() + 
+				"; splashed=" + this.vessel.checkSplashed() + "; partspos=" + (partsPosition == null ? "null" : "not null") + 
+				"; srf=" + this.vessel.GetSrfVelocity ().magnitude + "; thr=" + velocityThreshold + "; save thr=" + saveVelocityThreshold, 3);
+			if (this.isEngaged != State.True)
 				return false;
-			if (this.mirrorBrake != null)
+			if (this.isMaster != State.True)
 				return false;
 			if (this.vessel == null)
 				return false; 
@@ -266,6 +282,26 @@ namespace ParkingBrake
 			}
 			
 			return true;
+		}
+
+		private State resolveState(String state) {
+			switch (state) {
+			case "True":
+				return State.True;
+			case "False":
+				return State.False;
+			default:
+				return State.Unknown;
+			}
+		}
+
+		private void dbg(String msg, int lvl) {
+
+			if (lvl <= debugLevel) {
+				String id = (vessel != null ? vessel.GetName () : "-")  + "(" + this.part.GetInstanceID() + "): ";
+
+				print ("ParkingBrake: " + id + msg);
+			}
 		}
 	}
 }
