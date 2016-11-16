@@ -231,6 +231,10 @@ namespace ParkingBrake
 					//if (p.physicalSignificance != Part.PhysicalSignificance.FULL || p.Rigidbody == null)
 					if (p.Rigidbody == null)
 						continue;
+					// IR parts should not be put to sleep
+					if (p.Modules.Contains("MuMechToggle"))
+						continue;
+
 					j++;
 
 					//print (nm + "Veocity magnitude: " + p.Rigidbody.velocity.magnitude);
